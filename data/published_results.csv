@@ -1,0 +1,37 @@
+table,source,protocol,model,accuracy,weighted_f1,macro_f1,trainable_params
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",ViSoBERT,88.51,88.31,68.77,97568259
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",PhoBERT Large,87.32,86.98,65.14,369166339
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",TwHIN-BERT Large,87.23,86.78,65.23,
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",XLM-R Large,87.15,86.86,65.13,559893507
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",PhoBERT Base,87.12,86.81,65.01,135000579
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",vELECTRA,86.96,86.37,63.95,
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",TwHIN-BERT Base,86.63,86.23,63.67,
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",XLM-R Base,86.36,86.08,63.39,278045955
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",XLM-T,86.22,86.12,63.48,
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",Bernice,86.12,86.48,64.32,
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",viBERT,85.34,85.01,62.07,115356675
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",mBERT cased,83.55,83.99,60.62,177855747
+main,ViSoBERT (arXiv 2310.11166),"10 epoch, batch 40, max length 128, lr 2e-5, khong tien xu ly",mBERT uncased,83.38,81.27,58.92,167358723
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",ViHateT5,88.76,89.14,68.67,222882048
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",ViSoBERT,88.17,87.86,67.71,97568259
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",PhoBERT_v2,87.42,87.33,66.60,135000579
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",BERT cased,87.36,86.80,64.44,177855747
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",XLM-RoBERTa,87.29,86.97,65.08,
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",PhoBERT,86.75,86.52,64.76,135000579
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",BERT uncased,86.66,86.06,62.92,167358723
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",viBERT,86.33,85.79,62.85,115356675
+side,ViHateT5 (Findings of ACL 2024),"4 epoch, batch 16, max length 256, lr 2e-5, khong tien xu ly",DistilBERT,86.30,86.06,63.34,135326979
+side,Luu et al. 2021 (arXiv 2103.11528),"4 epoch, batch 16, max length 100, co tien xu ly",BERT cased,86.88,,62.69,177855747
+side,Luu et al. 2021 (arXiv 2103.11528),"4 epoch, batch 16, max length 100, co tien xu ly",Text CNN + fastText,86.69,,61.11,
+side,Luu et al. 2021 (arXiv 2103.11528),"4 epoch, batch 16, max length 100, co tien xu ly",BERT uncased,86.60,,62.38,167358723
+side,Luu et al. 2021 (arXiv 2103.11528),"4 epoch, batch 16, max length 100, co tien xu ly",DistilBERT,86.22,,62.42,135326979
+side,Luu et al. 2021 (arXiv 2103.11528),"4 epoch, batch 16, max length 100, co tien xu ly",XLM-R Base,86.12,,61.28,278045955
+side,Luu et al. 2021 (arXiv 2103.11528),"4 epoch, batch 16, max length 100, co tien xu ly",GRU + fastText,85.41,,60.47,
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",PhoBERT-CNN,87.17,,64.43,
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",PhoBERT,87.13,,63.51,135000579
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",Text-CNN + PhoW2V word,86.11,,63.01,
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",Bi-LSTM + PhoW2V word,85.99,,62.66,
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",XLMR-CNN,85.48,,63.34,
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",BERT,84.52,,60.29,
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",XLM-R,83.62,,62.38,
+side,PhoBERT-CNN (arXiv 2206.00524),"batch 64, lr 2e-5, co tien xu ly, khong tang cuong du lieu",RoBERTa,83.04,,61.49,
