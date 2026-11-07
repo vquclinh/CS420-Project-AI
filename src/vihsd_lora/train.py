@@ -16,13 +16,15 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import torch
-from transformers import DataCollatorWithPadding, Trainer, TrainingArguments, set_seed
+from transformers import DataCollatorWithPadding, Trainer, TrainerCallback, TrainingArguments, set_seed
 from transformers.trainer_utils import get_last_checkpoint
 
 from . import data as data_module
 from .config import LABELS, Run, Settings, get_run
-from .metrics import compute_metrics, confusion
-from .modeling import assert_trainable_scope, build_model, count_parameters, load_tokenizer, weights_size_mb
+from .inference import predict_logits
+from .metrics import compute_metrics, confusion, score_predictions
+from .modeling import (assert_trainable_scope, build_model, count_parameters, load_from_dir, load_tokenizer,
+                       weights_size_mb)
 from .tracking import HistoryCallback, start_wandb
 
 
@@ -48,9 +50,6 @@ def training_arguments(run: Run, seed: int, settings: Settings, checkpoint_dir: 
         eval_strategy=strategy,
         save_strategy=strategy,
         save_total_limit=1,
-        load_best_model_at_end=evaluate,
-        metric_for_best_model="macro_f1" if evaluate else None,
-        greater_is_better=True if evaluate else None,
         logging_steps=settings.logging_steps,
         fp16=torch.cuda.is_available(),
         seed=seed,
@@ -59,6 +58,50 @@ def training_arguments(run: Run, seed: int, settings: Settings, checkpoint_dir: 
         label_names=["labels"],
         report_to=report_to or [],
     )
+
+
+class BestModelCallback(TrainerCallback):
+    """Lưu model có macro F1 trên dev cao nhất vào best/ ngay sau mỗi lần chấm dev.
+
+    Model tốt nhất được giữ riêng với checkpoint, nên checkpoint có thể lưu thưa hơn
+    mà không mất epoch tốt nhất. Trạng thái ghi ra best_state.json để train tiếp vẫn nhớ.
+    """
+
+    def __init__(self, run_dir: Path, tokenizer):
+        self.best_dir = run_dir / "best"
+        self.state_path = run_dir / "best_state.json"
+        self.tokenizer = tokenizer
+        self.best = None
+        if self.state_path.exists():
+            self.best = json.loads(self.state_path.read_text(encoding="utf-8"))["macro_f1"]
+
+    def on_evaluate(self, args, state, control, metrics=None, model=None, **kwargs):
+        score = (metrics or {}).get("eval_macro_f1")
+        if score is None or model is None or (self.best is not None and score <= self.best):
+            return
+        temporary = self.best_dir.with_name("best_tmp")
+        shutil.rmtree(temporary, ignore_errors=True)
+        model.save_pretrained(str(temporary))
+        self.tokenizer.save_pretrained(str(temporary))
+        shutil.rmtree(self.best_dir, ignore_errors=True)
+        temporary.rename(self.best_dir)
+        self.best = score
+        self.state_path.write_text(json.dumps({"macro_f1": score, "epoch": round(state.epoch or 0, 2)}),
+                                   encoding="utf-8")
+
+
+class SaveIntervalCallback(TrainerCallback):
+    """Chỉ lưu checkpoint mỗi `every` epoch và ở epoch cuối."""
+
+    def __init__(self, every: int, total_epochs: int):
+        self.every = every
+        self.total_epochs = total_epochs
+
+    def on_epoch_end(self, args, state, control, **kwargs):
+        epoch = int(round(state.epoch or 0))
+        if epoch % self.every != 0 and epoch < self.total_epochs:
+            control.should_save = False
+        return control
 
 
 def _prepare(settings: Settings):
@@ -97,7 +140,7 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
     run_dir.mkdir(parents=True, exist_ok=True)
 
     set_seed(seed)
-    tokenizer, _, tokenized = _prepare(settings)
+    tokenizer, dataset, tokenized = _prepare(settings)
     model = build_model(run, settings)
     if run.mode == "lora":
         assert_trainable_scope(model)
@@ -111,6 +154,8 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
     arguments = training_arguments(run, seed, settings, checkpoint_dir, slug, len(tokenized["train"]),
                                    report_to=["wandb"] if session else [])
     history = HistoryCallback(run_dir / "history.csv", use_wandb=session is not None)
+    every = settings.save_interval(run)
+    print(f"Lưu checkpoint mỗi {every} epoch vào {checkpoint_dir}")
     trainer = Trainer(
         model=model,
         args=arguments,
@@ -119,7 +164,8 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
         processing_class=tokenizer,
         data_collator=DataCollatorWithPadding(tokenizer),
         compute_metrics=compute_metrics,
-        callbacks=[history],
+        callbacks=[history, BestModelCallback(run_dir, tokenizer),
+                   SaveIntervalCallback(every, settings.epochs_for(run))],
     )
 
     last_checkpoint = get_last_checkpoint(str(checkpoint_dir))
@@ -133,14 +179,18 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
 
     history.active = False
     best_dir = run_dir / "best"
-    trainer.model.save_pretrained(str(best_dir))
-    tokenizer.save_pretrained(str(best_dir))
+    del trainer, model
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
-    prediction = trainer.predict(tokenized["validation"], metric_key_prefix="dev")
-    dev_predictions = np.argmax(prediction.predictions, axis=-1)
-    dev_metrics = {key.replace("dev_", ""): value for key, value in prediction.metrics.items()
-                   if isinstance(value, (int, float))}
-    dev_metrics["confusion_matrix"] = confusion(prediction.label_ids, dev_predictions)
+    best_model = load_from_dir(best_dir, run.mode, settings.model_name)
+    dev_labels = np.array(list(dataset["validation"]["labels"]))
+    dev_logits = predict_logits(best_model, tokenizer, list(dataset["validation"]["text"]),
+                                batch_size=settings.eval_batch_size, max_length=settings.max_length)
+    dev_predictions = dev_logits.argmax(axis=-1)
+    dev_metrics = score_predictions(dev_labels, dev_predictions)
+    dev_metrics["confusion_matrix"] = confusion(dev_labels, dev_predictions)
+    del best_model
     (run_dir / "dev_metrics.json").write_text(json.dumps(dev_metrics, indent=2), encoding="utf-8")
 
     summary = {
@@ -162,7 +212,7 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
 
         session.summary.update({key: value for key, value in summary.items() if isinstance(value, (int, float))})
         wandb.log({"dev/confusion_matrix": wandb.plot.confusion_matrix(
-            y_true=prediction.label_ids.tolist(), preds=dev_predictions.tolist(), class_names=list(LABELS))})
+            y_true=dev_labels.tolist(), preds=dev_predictions.tolist(), class_names=list(LABELS))})
         session.finish()
 
     # Checkpoint chỉ cần khi train dở, model tốt nhất đã nằm trong best/.

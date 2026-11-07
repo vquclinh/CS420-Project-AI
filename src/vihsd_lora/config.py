@@ -58,7 +58,7 @@ class Settings:
     """Thiết lập dùng chung cho mọi lượt."""
 
     model_name: str = DEFAULT_MODEL
-    dataset_ids: tuple = ("uitnlp/vihsd", "sonlam1102/vihsd")
+    dataset_ids: tuple = ("uitnlp/vihsd", "phucdev/ViHSD")
     data_dir: Optional[str] = None
     output_root: str = "outputs"
     batch_size: int = 40
@@ -73,6 +73,7 @@ class Settings:
     num_workers: int = 2
     check_counts: bool = True
     epochs_override: Optional[int] = None
+    save_every_epochs: Optional[int] = None
     use_wandb: bool = True
     wandb_project: str = "vihsd-lora-seminar"
     wandb_entity: Optional[str] = None
@@ -99,6 +100,7 @@ class Settings:
             "logging_steps": "VIHSD_LOGGING_STEPS",
             "num_workers": "VIHSD_NUM_WORKERS",
             "epochs_override": "VIHSD_EPOCHS",
+            "save_every_epochs": "VIHSD_SAVE_EVERY_EPOCHS",
         }
         for name, env_name in env_ints.items():
             value = _env_int(env_name)
@@ -113,6 +115,16 @@ class Settings:
 
     def epochs_for(self, run: Run) -> int:
         return self.epochs_override or run.epochs
+
+    def save_interval(self, run: Run) -> int:
+        """Số epoch giữa hai lần lưu checkpoint để train tiếp.
+
+        Checkpoint LoRA chỉ vài MB nên lưu mỗi epoch. Checkpoint full fine-tune khoảng 1.2GB
+        (model và trạng thái optimizer), nên mặc định lưu cách 2 epoch để đỡ tốn dung lượng Drive.
+        """
+        if self.save_every_epochs:
+            return max(1, self.save_every_epochs)
+        return 2 if run.mode == "full" else 1
 
     def slug(self, run: Run, seed: int) -> str:
         """Tên thư mục và tên run trên W&B."""

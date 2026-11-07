@@ -93,17 +93,21 @@ def weights_size_mb(directory) -> float:
     return round(total / 1024**2, 2)
 
 
+def load_from_dir(best_dir, mode: str, model_name: str, device=None):
+    """Nạp adapter LoRA lên model gốc, hoặc nạp thẳng model full fine-tune."""
+    if mode == "lora":
+        model = PeftModel.from_pretrained(load_base_model(model_name), str(best_dir))
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(str(best_dir))
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    return model.to(device).eval()
+
+
 def load_trained(run_dir, device=None):
     """Nạp model tốt nhất của một lượt. Trả về (model, tokenizer, summary)."""
     run_dir = Path(run_dir)
     summary = json.loads((run_dir / "run_summary.json").read_text(encoding="utf-8"))
     best_dir = run_dir / "best"
-    if summary["mode"] == "lora":
-        base = load_base_model(summary["model_name"])
-        model = PeftModel.from_pretrained(base, str(best_dir))
-    else:
-        model = AutoModelForSequenceClassification.from_pretrained(str(best_dir))
-    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device).eval()
+    model = load_from_dir(best_dir, summary["mode"], summary["model_name"], device)
     tokenizer = load_tokenizer(str(best_dir))
     return model, tokenizer, summary

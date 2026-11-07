@@ -20,6 +20,13 @@ HISTORY_FIELDS = [
 ]
 
 
+def _wandb_dir(run_dir: Path) -> str:
+    """File tạm của W&B. Trên Colab để ngoài Drive vì dữ liệu đã được đồng bộ lên W&B."""
+    directory = os.environ.get("WANDB_DIR") or str(run_dir)
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    return directory
+
+
 def _run_id(run_dir: Path) -> str:
     """Giữ id cố định để train tiếp vẫn nối vào cùng một run trên W&B."""
     path = run_dir / "wandb_id.txt"
@@ -55,7 +62,7 @@ def start_wandb(run: Run, seed: int, slug: str, run_dir: Path, settings: Setting
         id=_run_id(run_dir),
         resume="allow",
         config=config,
-        dir=str(run_dir),
+        dir=_wandb_dir(run_dir),
     )
     wandb.define_metric("by_epoch/epoch")
     wandb.define_metric("by_epoch/*", step_metric="by_epoch/epoch")
@@ -69,7 +76,7 @@ def resume_wandb(run_dir: Path, settings: Settings):
     import wandb
 
     return wandb.init(project=settings.wandb_project, entity=settings.wandb_entity,
-                      id=_run_id(run_dir), resume="allow", dir=str(run_dir))
+                      id=_run_id(run_dir), resume="allow", dir=_wandb_dir(run_dir))
 
 
 class HistoryCallback(TrainerCallback):

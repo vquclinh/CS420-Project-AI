@@ -21,7 +21,7 @@ tools/       Script sinh lại notebook
    - Colab: mở biểu tượng chìa khóa ở thanh bên trái, thêm hai secret và bật quyền truy cập cho notebook.
    - Kaggle: mở Add-ons > Secrets, thêm hai secret và bật cho notebook.
 4. **GPU:** trên Colab chọn Runtime > Change runtime type, rồi chọn T4 hoặc L4. Trên Kaggle chọn GPU T4 và bật Internet.
-5. **Repo:** đẩy repo lên GitHub rồi sửa `REPO_URL` ở ô đầu tiên của mỗi notebook. Nếu repo private, cách đơn giản nhất là tải zip lên Colab và giải nén thành `/content/vihsd-lora`.
+5. **Repo:** sửa `REPO_URL` ở ô đầu tiên của mỗi notebook thành địa chỉ repo GitHub. Nếu repo private, tạo một fine-grained token chỉ có quyền đọc repo này và thêm vào Colab với tên `GITHUB_TOKEN`.
 
 ## Thứ tự chạy
 
@@ -49,6 +49,16 @@ Nếu mỗi thành viên chạy một lượt, hãy chép các thư mục `outpu
 
 Mọi lượt dùng batch 40, max length 128, warmup 6%, FP16 và chọn epoch tốt nhất theo macro F1 trên dev.
 
+## Lưu trên Drive và train tiếp
+
+Trên Colab, notebook tự mount Drive và lưu mọi thứ quan trọng lên Drive, không để trong `/content`.
+
+- **Checkpoint để train tiếp:** LoRA lưu mỗi epoch (vài MB), full fine-tune lưu cách 2 epoch (khoảng 1.2GB mỗi lần, gồm model và optimizer). Drive chỉ giữ checkpoint mới nhất. Đổi khoảng cách bằng `SAVE_EVERY_EPOCHS` trong notebook `01`.
+- **Model tốt nhất:** lưu vào `best/` ngay khi macro F1 trên dev tăng, độc lập với checkpoint, nên không mất epoch tốt nhất dù checkpoint lưu thưa.
+- **Bị ngắt phiên:** mở lại notebook `01`, chạy lại từ đầu với cùng lượt. Quá trình tiếp tục từ checkpoint gần nhất và nối vào cùng run trên W&B. Lượt đã train xong sẽ được bỏ qua.
+- **Thùng rác Drive:** checkpoint cũ bị xóa có thể nằm trong thùng rác và vẫn chiếm dung lượng. Sau lượt full fine-tune, hãy làm trống thùng rác Drive.
+- **File tạm của W&B:** để ở `/content/wandb_local`, vì dữ liệu đã được đồng bộ lên W&B. Trên Drive chỉ giữ `wandb_id.txt` để nối lại đúng run.
+
 ## Kết quả nằm ở đâu
 
 Trên Colab, kết quả lưu trong Drive tại `MyDrive/vihsd-lora/outputs`. Trên Kaggle, kết quả nằm ở `/kaggle/working/outputs`.
@@ -56,7 +66,9 @@ Trên Colab, kết quả lưu trong Drive tại `MyDrive/vihsd-lora/outputs`. Tr
 ```text
 outputs/
   runs/<tên lượt>/
-    best/                 Adapter LoRA hoặc model đầy đủ
+    best/                 Adapter LoRA hoặc model đầy đủ có macro F1 dev cao nhất
+    best_state.json       Điểm và epoch của model trong best/
+    checkpoints/          Checkpoint để train tiếp, tự xóa khi train xong
     history.csv           Số liệu theo epoch
     run_summary.json      Tham số, thời gian, VRAM, dung lượng, điểm dev
     test_metrics.json     Điểm test, khoảng tin cậy, confusion matrix
@@ -110,7 +122,7 @@ python -m pytest tests -q
 
 ## Trạng thái kiểm thử
 
-Toàn bộ test và 5 notebook đã chạy thành công trên CPU với model tí hon và dữ liệu giả, W&B ở chế độ offline. Số tham số của ViSoBERT đã được kiểm tra trên kiến trúc thật dựng từ config. Chưa kiểm thử trên GPU thật, với ViHSD thật, với trọng số ViSoBERT thật, và chưa đẩy lên W&B online. Vì vậy hãy chạy notebook `00` trước.
+Toàn bộ 22 test và 5 notebook đã chạy thành công trên CPU với model tí hon và dữ liệu giả, W&B ở chế độ offline. Số tham số của ViSoBERT đã được kiểm tra trên kiến trúc thật dựng từ config. Chưa kiểm thử trên GPU thật, với ViHSD thật, với trọng số ViSoBERT thật, và chưa đẩy lên W&B online. Vì vậy hãy chạy notebook `00` trước.
 
 ## Lưu ý về dữ liệu
 

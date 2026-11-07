@@ -67,10 +67,21 @@ def default_output_root() -> str:
             from google.colab import drive
 
             drive.mount(str(drive_root))
+        os.environ.setdefault("WANDB_DIR", "/content/wandb_local")
         return str(drive_root / "MyDrive" / "vihsd-lora" / "outputs")
     if platform == "kaggle":
         return "/kaggle/working/outputs"
     return "outputs"
+
+
+def free_space_gb(path: str) -> float:
+    """Dung lượng còn trống tại thư mục lưu kết quả, với Drive là dung lượng còn lại của tài khoản."""
+    import shutil
+
+    target = Path(path)
+    while not target.exists() and target != target.parent:
+        target = target.parent
+    return round(shutil.disk_usage(target).free / 1024**3, 1)
 
 
 def describe_gpu() -> dict:

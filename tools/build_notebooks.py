@@ -10,8 +10,17 @@ OUTPUT = Path(__file__).resolve().parents[1] / "notebooks"
 BOOTSTRAP = '''import os, subprocess, sys
 from pathlib import Path
 
-# Đổi thành địa chỉ repo của bạn. Bỏ qua nếu đã giải nén repo vào /content hoặc thêm vào Kaggle.
+# Đổi thành địa chỉ repo của bạn. Repo private thì thêm secret GITHUB_TOKEN trên Colab.
 REPO_URL = "https://github.com/TEN-TAI-KHOAN/vihsd-lora.git"
+
+def github_token():
+    if os.environ.get("GITHUB_TOKEN"):
+        return os.environ["GITHUB_TOKEN"]
+    try:
+        from google.colab import userdata
+        return userdata.get("GITHUB_TOKEN")
+    except Exception:
+        return None
 
 def find_repo():
     places = [Path.cwd(), *Path.cwd().parents, Path("/content/vihsd-lora"), Path("/kaggle/working/vihsd-lora")]
@@ -20,22 +29,32 @@ def find_repo():
 
 repo = find_repo()
 if repo is None:
+    if "TEN-TAI-KHOAN" in REPO_URL:
+        raise ValueError("Hãy sửa REPO_URL thành địa chỉ repo GitHub của bạn rồi chạy lại ô này.")
     repo = Path("/content" if Path("/content").exists() else "/kaggle/working") / "vihsd-lora"
-    subprocess.run(["git", "clone", "--depth", "1", REPO_URL, str(repo)], check=True)
+    token = github_token()
+    url = REPO_URL.replace("https://", f"https://{token}@") if token else REPO_URL
+    subprocess.run(["git", "clone", "--depth", "1", url, str(repo)], check=True)
+elif (repo / ".git").exists():
+    subprocess.run(["git", "-C", str(repo), "pull", "--ff-only", "-q"], check=False)
 if not os.environ.get("VIHSD_SKIP_INSTALL"):
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", str(repo / "requirements.txt")], check=True)
 sys.path.insert(0, str(repo / "src"))
 print("Repo:", repo)'''
 
 SESSION = '''from vihsd_lora.config import Settings
-from vihsd_lora.env import default_output_root, describe_gpu, detect_platform, load_secrets
+from vihsd_lora.env import default_output_root, describe_gpu, detect_platform, free_space_gb, load_secrets
 
 print("Nền tảng:", detect_platform())
 print("GPU:", describe_gpu())
 print("Secret đã có:", load_secrets())
 
 settings = Settings.from_env(output_root=default_output_root())
-print("Kết quả lưu tại:", settings.output_root)'''
+free_gb = free_space_gb(settings.output_root)
+print("Kết quả lưu tại:", settings.output_root)
+print(f"Dung lượng còn trống: {free_gb} GB")
+if free_gb < 6:
+    print("Cảnh báo: còn dưới 6GB. Lượt full fine-tune cần khoảng 3GB, hãy dọn Drive và làm trống thùng rác.")'''
 
 
 def notebook(cells):
@@ -94,8 +113,11 @@ print(speed_full)
 display(estimate_hours({"lora": speed_lora["seconds_per_step"], "full": speed_full["seconds_per_step"]}, settings))'''),
     ],
     "01_train.ipynb": [
-        ("md", "# 01. Train\n\nMỗi lượt được lưu trong `outputs/runs/<tên lượt>` và ghi lên W&B. Nếu Colab ngắt phiên, "
-               "chạy lại notebook với cùng lượt thì quá trình sẽ tiếp tục từ checkpoint gần nhất."),
+        ("md", "# 01. Train\n\nMỗi lượt được lưu trên Drive trong `MyDrive/vihsd-lora/outputs/runs/<tên lượt>` "
+               "và ghi lên W&B.\n\n- **Checkpoint:** LoRA lưu mỗi epoch, full fine-tune lưu cách 2 epoch. "
+               "Drive chỉ giữ checkpoint mới nhất.\n- **Model tốt nhất:** lưu vào `best/` ngay khi macro F1 trên dev tăng.\n"
+               "- **Bị ngắt phiên:** chạy lại toàn bộ notebook với cùng lượt, quá trình tiếp tục từ checkpoint gần nhất "
+               "và nối vào cùng run trên W&B."),
         ("code", BOOTSTRAP),
         ("code", SESSION),
         ("md", "## Chọn lượt\n\n| Lượt | Cách train | r | Epoch |\n|---|---|---|---|\n"
@@ -105,8 +127,10 @@ display(estimate_hours({"lora": speed_lora["seconds_per_step"], "full": speed_fu
         ("code", '''RUNS_TO_TRAIN = ["A"]
 SEED = 42
 WANDB_TEAM = None  # Điền tên team W&B nếu cả nhóm dùng chung một không gian
+SAVE_EVERY_EPOCHS = None  # Bỏ trống để dùng mặc định: LoRA 1 epoch, full fine-tune 2 epoch
 
-settings.wandb_entity = WANDB_TEAM or settings.wandb_entity'''),
+settings.wandb_entity = WANDB_TEAM or settings.wandb_entity
+settings.save_every_epochs = SAVE_EVERY_EPOCHS'''),
         ("code", '''import gc
 import pandas as pd
 import torch

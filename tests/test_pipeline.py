@@ -159,6 +159,48 @@ def test_resume_after_interruption(settings, monkeypatch):
     assert list(history["epoch"]) == [1.0, 2.0]
 
 
+class _SaveRecorder(train_module.HistoryCallback):
+    saved_epochs = []
+
+    def on_save(self, args, state, control, **kwargs):
+        _SaveRecorder.saved_epochs.append(round(state.epoch))
+
+
+def test_save_interval_and_best_model_kept(settings, monkeypatch):
+    _SaveRecorder.saved_epochs = []
+    monkeypatch.setattr(train_module, "HistoryCallback", _SaveRecorder)
+    settings.epochs_override = 5
+    settings.save_every_epochs = 2
+    summary = train_module.train_run("C", settings=settings)
+    assert _SaveRecorder.saved_epochs == [2, 4, 5]
+
+    run_dir = settings.run_dir(get_run("C"), 42)
+    best = json.loads((run_dir / "best_state.json").read_text(encoding="utf-8"))
+    history = pd.read_csv(run_dir / "history.csv")
+    assert best["epoch"] == summary["best_epoch"]
+    assert best["macro_f1"] == pytest.approx(history["dev_macro_f1"].max())
+    assert summary["dev_macro_f1"] == pytest.approx(best["macro_f1"], abs=1e-6)
+    assert not (run_dir / "best_tmp").exists()
+
+
+def test_default_save_interval_by_mode():
+    assert Settings().save_interval(RUNS["A"]) == 1
+    assert Settings().save_interval(RUNS["B"]) == 2
+    assert Settings(save_every_epochs=3).save_interval(RUNS["A"]) == 3
+
+
+def test_wandb_dir_can_live_outside_run_dir(settings, monkeypatch, tmp_path):
+    monkeypatch.setenv("WANDB_MODE", "offline")
+    monkeypatch.setenv("WANDB_SILENT", "true")
+    monkeypatch.setenv("WANDB_DIR", str(tmp_path / "wandb_local"))
+    settings.use_wandb = True
+    train_module.train_run("A", settings=settings)
+    run_dir = settings.run_dir(get_run("A"), 42)
+    assert (run_dir / "wandb_id.txt").exists()
+    assert not (run_dir / "wandb").exists()
+    assert list((tmp_path / "wandb_local" / "wandb").glob("offline-run-*"))
+
+
 def test_full_run_saves_whole_model_and_is_larger(settings):
     lora = train_module.train_run("A", settings=settings)
     full = train_module.train_run("B", settings=settings)
