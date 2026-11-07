@@ -111,6 +111,7 @@ Có thể dùng dữ liệu cục bộ bằng cách đặt `VIHSD_DATA_DIR` tớ
 | Hết VRAM | Đặt `VIHSD_BATCH_SIZE` nhỏ hơn và ghi rõ thay đổi trong report |
 | Colab ngắt phiên | Chạy lại `01_train` với cùng lượt để train tiếp |
 | Lỗi import ngay sau khi cài thư viện | Chọn Runtime > Restart session rồi chạy lại từ đầu |
+| `Found an incompatible version of torchao` | Ô đầu tiên đã tự gỡ torchao. Nếu vẫn gặp, chạy `!pip uninstall -y torchao`, chọn Runtime > Restart session rồi chạy lại |
 | Không muốn dùng W&B | Đặt `WANDB_MODE=disabled`, `history.csv` và biểu đồ PNG vẫn được tạo |
 
 ## Kiểm thử

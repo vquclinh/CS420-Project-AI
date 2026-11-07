@@ -38,6 +38,8 @@ if repo is None:
 elif (repo / ".git").exists():
     subprocess.run(["git", "-C", str(repo), "pull", "--ff-only", "-q"], check=False)
 if not os.environ.get("VIHSD_SKIP_INSTALL"):
+    # Colab cài sẵn torchao bản cũ, peft sẽ báo lỗi khi gắn LoRA. Repo không dùng torchao nên gỡ đi.
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "-q", "torchao"], check=False)
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", str(repo / "requirements.txt")], check=True)
 sys.path.insert(0, str(repo / "src"))
 print("Repo:", repo)'''
