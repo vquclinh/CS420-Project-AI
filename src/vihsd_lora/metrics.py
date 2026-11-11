@@ -1,4 +1,4 @@
-"""Chỉ số đánh giá. Điểm trả về theo thang 0–100 để khớp bảng số liệu."""
+"""Evaluation metrics. Scores are on a 0–100 scale to match the published tables."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def score_predictions(y_true, y_pred) -> dict:
 
 
 def compute_metrics(eval_prediction) -> dict:
-    """Hàm dùng cho Trainer."""
+    """Metric function for the Trainer."""
     logits, labels = eval_prediction
     if isinstance(logits, tuple):
         logits = logits[0]
@@ -42,13 +42,13 @@ def confusion(y_true, y_pred) -> list:
 
 
 def majority_baseline(y_true) -> dict:
-    """Điểm của cách luôn đoán CLEAN."""
+    """Scores of always predicting CLEAN."""
     y_true = np.asarray(list(y_true))
     return score_predictions(y_true, np.zeros_like(y_true))
 
 
 def bootstrap_interval(y_true, y_pred, n_resamples: int = 2000, seed: int = 0) -> dict:
-    """Khoảng tin cậy 95% của Accuracy và macro F1 bằng bootstrap trên test."""
+    """95% confidence intervals of Accuracy and macro F1, via bootstrap on the test set."""
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     rng = np.random.default_rng(seed)
@@ -67,7 +67,7 @@ def bootstrap_interval(y_true, y_pred, n_resamples: int = 2000, seed: int = 0) -
 
 
 def paired_bootstrap_difference(y_true, pred_a, pred_b, n_resamples: int = 2000, seed: int = 0) -> dict:
-    """Khoảng tin cậy 95% của chênh lệch macro F1 (A trừ B) trên cùng các mẫu test."""
+    """95% confidence interval of the macro F1 difference (A minus B) on the same test samples."""
     y_true = np.asarray(y_true)
     pred_a = np.asarray(pred_a)
     pred_b = np.asarray(pred_b)

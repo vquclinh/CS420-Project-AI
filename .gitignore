@@ -1,4 +1,4 @@
-# Du lieu va ket qua khong dua len git
+# Data and results are not committed to git
 outputs/
 results/
 wandb/

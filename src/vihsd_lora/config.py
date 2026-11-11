@@ -1,4 +1,4 @@
-"""Cấu hình thí nghiệm: các lượt train và thiết lập dùng chung."""
+"""Experiment configuration: training runs and shared settings."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ ID2LABEL = {index: name for index, name in enumerate(LABELS)}
 
 @dataclass(frozen=True)
 class Run:
-    """Một lượt train trong kế hoạch."""
+    """One training run in the plan."""
 
     key: str
     mode: str
@@ -28,8 +28,8 @@ class Run:
 
     def describe(self) -> str:
         if self.mode == "lora":
-            return f"LoRA r={self.rank}, {self.epochs} epoch"
-        return f"Full fine-tune, {self.epochs} epoch"
+            return f"LoRA r={self.rank}, {self.epochs} epochs"
+        return f"Full fine-tune, {self.epochs} epochs"
 
 
 RUNS = {
@@ -44,7 +44,7 @@ RUNS = {
 def get_run(key: str) -> Run:
     normalized = key.strip().upper()
     if normalized not in RUNS:
-        raise ValueError(f"Không có lượt '{key}'. Các lượt hợp lệ: {', '.join(RUNS)}")
+        raise ValueError(f"Unknown run '{key}'. Valid runs: {', '.join(RUNS)}")
     return RUNS[normalized]
 
 
@@ -55,7 +55,7 @@ def _env_int(name: str) -> Optional[int]:
 
 @dataclass
 class Settings:
-    """Thiết lập dùng chung cho mọi lượt."""
+    """Settings shared by all runs."""
 
     model_name: str = DEFAULT_MODEL
     dataset_ids: tuple = ("uitnlp/vihsd", "phucdev/ViHSD")
@@ -81,7 +81,7 @@ class Settings:
 
     @classmethod
     def from_env(cls, **overrides) -> "Settings":
-        """Đọc biến môi trường, sau đó áp dụng giá trị truyền trực tiếp."""
+        """Read environment variables, then apply values passed in directly."""
         values = {}
         env_strings = {
             "model_name": "VIHSD_MODEL_NAME",
@@ -117,17 +117,17 @@ class Settings:
         return self.epochs_override or run.epochs
 
     def save_interval(self, run: Run) -> int:
-        """Số epoch giữa hai lần lưu checkpoint để train tiếp.
+        """Number of epochs between two resumable checkpoint saves.
 
-        Checkpoint LoRA chỉ vài MB nên lưu mỗi epoch. Checkpoint full fine-tune khoảng 1.2GB
-        (model và trạng thái optimizer), nên mặc định lưu cách 2 epoch để đỡ tốn dung lượng Drive.
+        A LoRA checkpoint is only a few MB, so it is saved every epoch. A full fine-tune checkpoint is
+        about 1.2GB (model and optimizer state), so by default it is saved every 2 epochs to save Drive space.
         """
         if self.save_every_epochs:
             return max(1, self.save_every_epochs)
         return 2 if run.mode == "full" else 1
 
     def slug(self, run: Run, seed: int) -> str:
-        """Tên thư mục và tên run trên W&B."""
+        """Directory name and W&B run name."""
         epochs = self.epochs_for(run)
         method = f"lora_r{run.rank}" if run.mode == "lora" else "full"
         slug = f"{run.key}_{method}_e{epochs}_s{seed}"

@@ -1,4 +1,4 @@
-"""Kết nối W&B và ghi lịch sử train ra CSV."""
+"""W&B connection and CSV logging of the training history."""
 
 from __future__ import annotations
 
@@ -21,14 +21,14 @@ HISTORY_FIELDS = [
 
 
 def _wandb_dir(run_dir: Path) -> str:
-    """File tạm của W&B. Trên Colab để ngoài Drive vì dữ liệu đã được đồng bộ lên W&B."""
+    """W&B local files. On Colab they live outside Drive, since the data is already synced to W&B."""
     directory = os.environ.get("WANDB_DIR") or str(run_dir)
     Path(directory).mkdir(parents=True, exist_ok=True)
     return directory
 
 
 def _run_id(run_dir: Path) -> str:
-    """Giữ id cố định để train tiếp vẫn nối vào cùng một run trên W&B."""
+    """Keep a fixed id so resumed training continues the same W&B run."""
     path = run_dir / "wandb_id.txt"
     if path.exists():
         return path.read_text().strip()
@@ -70,7 +70,7 @@ def start_wandb(run: Run, seed: int, slug: str, run_dir: Path, settings: Setting
 
 
 def resume_wandb(run_dir: Path, settings: Settings):
-    """Mở lại run đã có để ghi điểm test."""
+    """Reopen an existing run to log test scores."""
     if not settings.use_wandb or not (run_dir / "wandb_id.txt").exists():
         return None
     import wandb
@@ -80,7 +80,7 @@ def resume_wandb(run_dir: Path, settings: Settings):
 
 
 class HistoryCallback(TrainerCallback):
-    """Ghi số liệu theo epoch ra history.csv và lên W&B."""
+    """Write per-epoch metrics to history.csv and to W&B."""
 
     def __init__(self, path: Path, use_wandb: bool):
         self.path = Path(path)

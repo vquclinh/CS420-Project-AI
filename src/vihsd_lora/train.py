@@ -1,6 +1,6 @@
-"""Train một lượt, tự train tiếp từ checkpoint nếu bị ngắt.
+"""Train one run, resuming from the last checkpoint if it was interrupted.
 
-Dòng lệnh: python -m vihsd_lora.train --run A --seed 42
+Command line: python -m vihsd_lora.train --run A --seed 42
 """
 
 from __future__ import annotations
@@ -61,10 +61,10 @@ def training_arguments(run: Run, seed: int, settings: Settings, checkpoint_dir: 
 
 
 class BestModelCallback(TrainerCallback):
-    """Lưu model có macro F1 trên dev cao nhất vào best/ ngay sau mỗi lần chấm dev.
+    """Save the model with the highest dev macro F1 to best/ right after each dev evaluation.
 
-    Model tốt nhất được giữ riêng với checkpoint, nên checkpoint có thể lưu thưa hơn
-    mà không mất epoch tốt nhất. Trạng thái ghi ra best_state.json để train tiếp vẫn nhớ.
+    The best model is kept apart from the checkpoints, so checkpoints can be saved less often
+    without losing the best epoch. Its state is written to best_state.json so resumed training remembers it.
     """
 
     def __init__(self, run_dir: Path, tokenizer):
@@ -91,7 +91,7 @@ class BestModelCallback(TrainerCallback):
 
 
 class SaveIntervalCallback(TrainerCallback):
-    """Chỉ lưu checkpoint mỗi `every` epoch và ở epoch cuối."""
+    """Only save a checkpoint every `every` epochs and at the last epoch."""
 
     def __init__(self, every: int, total_epochs: int):
         self.every = every
@@ -123,7 +123,7 @@ def _summarize_history(path: Path) -> dict:
 
 
 def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None, overwrite: bool = False) -> dict:
-    """Train một lượt và trả về run_summary."""
+    """Train one run and return its run summary."""
     settings = settings or Settings.from_env()
     run = get_run(run_key)
     slug = settings.slug(run, seed)
@@ -131,11 +131,12 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
     summary_path = run_dir / "run_summary.json"
 
     if summary_path.exists() and not overwrite:
-        print(f"{slug} đã train xong, bỏ qua. Dùng overwrite=True nếu muốn chạy lại.")
+        print(f"{slug} is already trained, skipping. Use overwrite=True to train it again.")
         return json.loads(summary_path.read_text(encoding="utf-8"))
     if overwrite and run_dir.exists():
         if (run_dir / "test_metrics.json").exists():
-            print("Cảnh báo: lượt này đã chấm test. Train lại sau khi xem điểm test làm điểm mất ý nghĩa.")
+            print("Warning: this run has already been scored on test. Retraining after seeing test scores "
+                  "makes those scores meaningless.")
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -145,7 +146,7 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
     if run.mode == "lora":
         assert_trainable_scope(model)
     parameters = count_parameters(model)
-    print(f"{slug}: train {parameters['trainable_params']:,} / {parameters['model_params']:,} tham số "
+    print(f"{slug}: train {parameters['trainable_params']:,} / {parameters['model_params']:,} parameters "
           f"({parameters['trainable_pct']}%)")
 
     session = start_wandb(run, seed, slug, run_dir, settings, parameters)
@@ -155,7 +156,7 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
                                    report_to=["wandb"] if session else [])
     history = HistoryCallback(run_dir / "history.csv", use_wandb=session is not None)
     every = settings.save_interval(run)
-    print(f"Lưu checkpoint mỗi {every} epoch vào {checkpoint_dir}")
+    print(f"Saving a checkpoint every {every} epoch(s) to {checkpoint_dir}")
     trainer = Trainer(
         model=model,
         args=arguments,
@@ -170,7 +171,7 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
 
     last_checkpoint = get_last_checkpoint(str(checkpoint_dir))
     if last_checkpoint:
-        print(f"Train tiếp từ {last_checkpoint}")
+        print(f"Resuming from {last_checkpoint}")
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
     started = time.perf_counter()
@@ -215,15 +216,15 @@ def train_run(run_key: str, seed: int = 42, settings: Optional[Settings] = None,
             y_true=dev_labels.tolist(), preds=dev_predictions.tolist(), class_names=list(LABELS))})
         session.finish()
 
-    # Checkpoint chỉ cần khi train dở, model tốt nhất đã nằm trong best/.
+    # Checkpoints are only needed for unfinished training. The best model is already in best/.
     shutil.rmtree(checkpoint_dir, ignore_errors=True)
-    print(f"Xong {slug}: dev macro F1 {summary['dev_macro_f1']:.2f}, Acc {summary['dev_accuracy']:.2f}")
+    print(f"Finished {slug}: dev macro F1 {summary['dev_macro_f1']:.2f}, Acc {summary['dev_accuracy']:.2f}")
     return summary
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train một lượt thí nghiệm ViHSD")
-    parser.add_argument("--run", required=True, help="A, B, C, D hoặc E")
+    parser = argparse.ArgumentParser(description="Train one ViHSD experiment run")
+    parser.add_argument("--run", required=True, help="A, B, C, D or E")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--overwrite", action="store_true")
     arguments = parser.parse_args()

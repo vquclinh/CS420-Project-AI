@@ -1,4 +1,4 @@
-# Phien ban da chay kiem thu. torch dung ban co san tren Colab hoac Kaggle (can >= 2.6).
+# Versions the tests were run with. torch comes preinstalled on Colab or Kaggle (requires >= 2.6).
 transformers==5.22.1
 peft==0.21.2
 accelerate==1.15.0

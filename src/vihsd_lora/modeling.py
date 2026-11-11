@@ -1,4 +1,4 @@
-"""Nạp model, gắn LoRA, đếm tham số và nạp lại model đã train."""
+"""Load the model, attach LoRA, count parameters and reload trained models."""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ def _token():
 
 
 def load_tokenizer(model_name: str):
-    """ViSoBERT chỉ có file sentencepiece, nên cần thư viện sentencepiece."""
+    """ViSoBERT only ships a sentencepiece model file, so the sentencepiece library is required."""
     try:
         return AutoTokenizer.from_pretrained(model_name, token=_token())
     except Exception as first_error:
-        print(f"Tokenizer mặc định lỗi ({type(first_error).__name__}), thử bản slow.")
+        print(f"Default tokenizer failed ({type(first_error).__name__}), trying the slow one.")
         return AutoTokenizer.from_pretrained(model_name, token=_token(), use_fast=False)
 
 
@@ -37,7 +37,7 @@ def load_base_model(model_name: str):
 
 
 def attach_lora(model, run: Run, settings: Settings):
-    """Đóng băng trọng số gốc, gắn LoRA vào query và value của self-attention."""
+    """Freeze the base weights and attach LoRA to the self-attention query and value."""
     config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
         r=run.rank,
@@ -57,7 +57,7 @@ def build_model(run: Run, settings: Settings):
 
 
 def count_parameters(model) -> dict:
-    """Đếm tham số. model_params không tính phần LoRA và bản sao đầu phân loại của PEFT."""
+    """Count parameters. model_params excludes the LoRA weights and PEFT's copy of the classifier head."""
     trainable = lora = model_params = 0
     for name, parameter in model.named_parameters():
         size = parameter.numel()
@@ -78,11 +78,11 @@ def count_parameters(model) -> dict:
 
 
 def assert_trainable_scope(model) -> None:
-    """Dừng lại nếu có tham số ngoài LoRA và đầu phân loại được train."""
+    """Stop if any parameter outside LoRA and the classifier head is trainable."""
     unexpected = [name for name, parameter in model.named_parameters()
                   if parameter.requires_grad and "lora_" not in name and ".modules_to_save." not in name]
     if unexpected:
-        raise RuntimeError(f"Có tham số ngoài LoRA đang được train: {unexpected[:5]}")
+        raise RuntimeError(f"Parameters outside LoRA are trainable: {unexpected[:5]}")
 
 
 def weights_size_mb(directory) -> float:
@@ -94,7 +94,7 @@ def weights_size_mb(directory) -> float:
 
 
 def load_from_dir(best_dir, mode: str, model_name: str, device=None):
-    """Nạp adapter LoRA lên model gốc, hoặc nạp thẳng model full fine-tune."""
+    """Load a LoRA adapter onto the base model, or load a full fine-tuned model directly."""
     if mode == "lora":
         model = PeftModel.from_pretrained(load_base_model(model_name), str(best_dir))
     else:
@@ -104,7 +104,7 @@ def load_from_dir(best_dir, mode: str, model_name: str, device=None):
 
 
 def load_trained(run_dir, device=None):
-    """Nạp model tốt nhất của một lượt. Trả về (model, tokenizer, summary)."""
+    """Load the best model of a run. Returns (model, tokenizer, summary)."""
     run_dir = Path(run_dir)
     summary = json.loads((run_dir / "run_summary.json").read_text(encoding="utf-8"))
     best_dir = run_dir / "best"

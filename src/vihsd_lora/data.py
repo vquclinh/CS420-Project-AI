@@ -1,4 +1,4 @@
-"""Tải, chuẩn hóa và kiểm tra dữ liệu ViHSD."""
+"""Load, normalize and validate the ViHSD data."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ from datasets import Dataset, DatasetDict, load_dataset
 
 from .config import LABEL2ID, LABELS, Settings
 
-# Số mẫu theo paper gốc ViHSD và các paper dùng lại split này.
+# Sample counts from the original ViHSD paper and the papers that reuse this split.
 EXPECTED_COUNTS = {
     "train": {"CLEAN": 19886, "OFFENSIVE": 1606, "HATE": 2556},
     "validation": {"CLEAN": 2190, "OFFENSIVE": 212, "HATE": 270},
     "test": {"CLEAN": 5548, "OFFENSIVE": 444, "HATE": 688},
 }
-# Một vài dòng rỗng có thể bị loại khi đọc CSV, ví dụ chuỗi bị hiểu là giá trị thiếu.
+# A few empty rows may be dropped when reading the CSV, e.g. strings parsed as missing values.
 MISSING_ROWS_TOLERANCE = 5
 
 TEXT_COLUMNS = ("free_text", "text", "comment", "sentence", "content")
@@ -30,7 +30,7 @@ def _pick_column(columns, candidates, kind: str) -> str:
     for name in candidates:
         if name in columns:
             return name
-    raise ValueError(f"Không tìm thấy cột {kind}. Các cột hiện có: {sorted(columns)}")
+    raise ValueError(f"No {kind} column found. Available columns: {sorted(columns)}")
 
 
 def _load_local(data_dir: str) -> DatasetDict:
@@ -42,7 +42,7 @@ def _load_local(data_dir: str) -> DatasetDict:
             files[split] = str(path)
     missing = {"train", "validation", "test"} - set(files)
     if missing:
-        raise FileNotFoundError(f"Thiếu file cho split {sorted(missing)} trong {root}")
+        raise FileNotFoundError(f"Missing files for split(s) {sorted(missing)} in {root}")
     builder = "csv" if next(iter(files.values())).endswith(".csv") else "parquet"
     return load_dataset(builder, data_files=files)
 
@@ -53,38 +53,38 @@ def _load_hub(settings: Settings) -> DatasetDict:
     for dataset_id in settings.dataset_ids:
         try:
             dataset = load_dataset(dataset_id, token=token)
-            print(f"Đã tải dữ liệu từ {dataset_id}")
+            print(f"Loaded data from {dataset_id}")
             return dataset
-        except Exception as error:  # Thử nguồn tiếp theo trước khi báo lỗi.
+        except Exception as error:  # Try the next source before raising.
             errors.append(f"{dataset_id}: {type(error).__name__}: {error}")
     raise RuntimeError(
-        "Không tải được ViHSD. Hãy mở https://huggingface.co/datasets/uitnlp/vihsd, "
-        "đăng nhập, chấp nhận điều kiện, rồi kiểm tra HF_TOKEN.\n" + "\n".join(errors)
+        "Could not load ViHSD. Open https://huggingface.co/datasets/uitnlp/vihsd, "
+        "log in, accept the conditions, then check HF_TOKEN.\n" + "\n".join(errors)
     )
 
 
 def infer_label_mapping(values) -> dict:
-    """Ánh xạ giá trị nhãn trong file sang tên nhãn.
+    """Map the label values in the file to label names.
 
-    Nhãn dạng chữ được đối chiếu theo tên. Nhãn dạng số được xác định theo số mẫu
-    train, vì ba nhãn có số lượng khác xa nhau: CLEAN nhiều nhất, HATE ở giữa,
-    OFFENSIVE ít nhất.
+    String labels are matched by name. Numeric labels are identified by their train
+    counts, since the three labels differ greatly in size: CLEAN is the largest, HATE is
+    in the middle, and OFFENSIVE is the smallest.
     """
     counts = Counter(values)
     if len(counts) != len(LABELS):
-        raise ValueError(f"Cần đúng 3 nhãn, nhưng tìm thấy: {dict(counts)}")
+        raise ValueError(f"Expected exactly 3 labels, but found: {dict(counts)}")
     if all(isinstance(value, str) for value in counts):
         mapping = {value: value.strip().upper() for value in counts}
         unknown = set(mapping.values()) - set(LABELS)
         if unknown:
-            raise ValueError(f"Nhãn không hợp lệ: {sorted(unknown)}")
+            raise ValueError(f"Invalid labels: {sorted(unknown)}")
         return mapping
     ranked = [value for value, _ in counts.most_common()]
     return {ranked[0]: "CLEAN", ranked[1]: "HATE", ranked[2]: "OFFENSIVE"}
 
 
 def normalize(dataset: DatasetDict) -> DatasetDict:
-    """Đưa dữ liệu về hai cột text và labels, với id theo LABELS."""
+    """Reduce the data to two columns, text and labels, with ids following LABELS."""
     renamed = {}
     for name, split in dataset.items():
         target = SPLIT_ALIASES.get(name)
@@ -93,11 +93,11 @@ def normalize(dataset: DatasetDict) -> DatasetDict:
         renamed[target] = split
     missing = {"train", "validation", "test"} - set(renamed)
     if missing:
-        raise ValueError(f"Thiếu split {sorted(missing)}. Bản dữ liệu này không phù hợp.")
+        raise ValueError(f"Missing split(s) {sorted(missing)}. This version of the data is not suitable.")
 
     columns = renamed["train"].column_names
-    text_column = _pick_column(columns, TEXT_COLUMNS, "văn bản")
-    label_column = _pick_column(columns, LABEL_COLUMNS, "nhãn")
+    text_column = _pick_column(columns, TEXT_COLUMNS, "text")
+    label_column = _pick_column(columns, LABEL_COLUMNS, "label")
     mapping = infer_label_mapping(list(renamed["train"][label_column]))
 
     output = {}
@@ -106,7 +106,7 @@ def normalize(dataset: DatasetDict) -> DatasetDict:
         split = split.filter(lambda row: row[text_column] is not None and str(row[text_column]).strip() != "")
         removed = before - len(split)
         if removed:
-            print(f"{name}: loại {removed} dòng văn bản rỗng")
+            print(f"{name}: dropped {removed} rows with empty text")
         split = split.map(
             lambda row: {"text": str(row[text_column]), "labels": LABEL2ID[mapping[row[label_column]]]},
             remove_columns=split.column_names,
@@ -124,17 +124,18 @@ def label_counts(dataset: DatasetDict) -> dict:
 
 
 def check_counts(dataset: DatasetDict, tolerance: int = MISSING_ROWS_TOLERANCE) -> dict:
-    """So số mẫu từng nhãn với bản chuẩn. Lệch quá ngưỡng thì dừng lại."""
+    """Compare per-label counts with the reference version. Stop if the gap exceeds the tolerance."""
     actual = label_counts(dataset)
     problems = []
     for split, expected in EXPECTED_COUNTS.items():
         for label, count in expected.items():
             difference = count - actual[split][label]
             if difference < 0 or difference > tolerance:
-                problems.append(f"{split}/{label}: mong đợi {count}, thực tế {actual[split][label]}")
+                problems.append(f"{split}/{label}: expected {count}, got {actual[split][label]}")
     if problems:
         raise ValueError(
-            "Dữ liệu không khớp bản ViHSD chuẩn, nên kết quả sẽ không so được với bảng số liệu:\n"
+            "The data does not match the reference ViHSD version, so results would not be comparable "
+            "with the published tables:\n"
             + "\n".join(problems)
         )
     return actual
@@ -146,9 +147,9 @@ def load_vihsd(settings: Optional[Settings] = None) -> DatasetDict:
     dataset = normalize(raw)
     if settings.check_counts:
         check_counts(dataset)
-        print("Số mẫu từng nhãn khớp bản ViHSD chuẩn.")
+        print("Per-label counts match the reference ViHSD version.")
     else:
-        print("Đã bỏ qua kiểm tra số mẫu. Chỉ dùng khi chạy thử.")
+        print("Skipped the sample count check. Only do this for test runs.")
     return dataset
 
 
@@ -160,7 +161,7 @@ def tokenize_dataset(dataset: DatasetDict, tokenizer, max_length: int) -> Datase
 
 
 def length_report(split: Dataset, tokenizer, max_length: int) -> dict:
-    """Thống kê độ dài token để biết max_length cắt mất bao nhiêu bình luận."""
+    """Token length statistics, to see how many comments max_length truncates."""
     import numpy as np
 
     lengths = np.array([len(ids) for ids in tokenizer(list(split["text"]), truncation=False)["input_ids"]])

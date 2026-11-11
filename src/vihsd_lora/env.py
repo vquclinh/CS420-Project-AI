@@ -1,4 +1,4 @@
-"""Nhận biết Colab/Kaggle, nạp secret và chọn nơi lưu kết quả."""
+"""Detect Colab/Kaggle, load secrets and choose where to store results."""
 
 from __future__ import annotations
 
@@ -42,14 +42,14 @@ def _read_secret(name: str, platform: str) -> Optional[str]:
 
 
 def load_secrets(ask_if_missing: bool = True) -> dict:
-    """Đưa HF_TOKEN và WANDB_API_KEY vào biến môi trường, không in giá trị."""
+    """Put HF_TOKEN and WANDB_API_KEY into environment variables without printing their values."""
     platform = detect_platform()
     status = {}
     for name in ("HF_TOKEN", "WANDB_API_KEY"):
         value = _read_secret(name, platform)
         wandb_off = name == "WANDB_API_KEY" and os.environ.get("WANDB_MODE") in ("offline", "disabled")
         if not value and ask_if_missing and not wandb_off:
-            value = getpass.getpass(f"Nhập {name} (bỏ trống nếu không có): ").strip()
+            value = getpass.getpass(f"Enter {name} (leave blank if you do not have one): ").strip()
         if value:
             os.environ[name] = value
         status[name] = bool(value)
@@ -57,7 +57,7 @@ def load_secrets(ask_if_missing: bool = True) -> dict:
 
 
 def default_output_root() -> str:
-    """Chọn thư mục kết quả bền vững theo nền tảng."""
+    """Choose a persistent output directory for the current platform."""
     if os.environ.get("VIHSD_OUTPUT_ROOT"):
         return os.environ["VIHSD_OUTPUT_ROOT"]
     platform = detect_platform()
@@ -75,7 +75,7 @@ def default_output_root() -> str:
 
 
 def free_space_gb(path: str) -> float:
-    """Dung lượng còn trống tại thư mục lưu kết quả, với Drive là dung lượng còn lại của tài khoản."""
+    """Free space at the output directory. On Drive this is the remaining quota of the account."""
     import shutil
 
     target = Path(path)
@@ -88,6 +88,6 @@ def describe_gpu() -> dict:
     import torch
 
     if not torch.cuda.is_available():
-        return {"device": "cpu", "name": "Không có GPU", "memory_gb": 0.0}
+        return {"device": "cpu", "name": "No GPU", "memory_gb": 0.0}
     props = torch.cuda.get_device_properties(0)
     return {"device": "cuda", "name": props.name, "memory_gb": round(props.total_memory / 1024**3, 1)}

@@ -1,4 +1,4 @@
-"""Chạy thử vài trăm step để đo tốc độ, VRAM và ước tính thời gian."""
+"""Run a few hundred steps to measure speed and VRAM, and estimate training time."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from .train import _prepare, training_arguments
 
 
 class _StepTimer(TrainerCallback):
-    """Bỏ qua các step đầu vì chúng chậm hơn do khởi tạo."""
+    """Skip the first steps, which are slower because of warm-up."""
 
     def __init__(self, skip: int):
         self.skip = skip
@@ -63,11 +63,12 @@ def measure(run_key: str = "A", steps: int = 200, settings: Optional[Settings] =
 
 
 def estimate_hours(speed_by_mode: dict, settings: Optional[Settings] = None, train_size: int = 24048) -> pd.DataFrame:
-    """Ước tính thời gian train từng lượt theo tốc độ vừa đo. Chưa tính thời gian chấm dev."""
+    """Estimate the training time of each run from the measured speed. Dev evaluation is not included."""
     settings = settings or Settings.from_env()
     rows = []
     for run in RUNS.values():
         steps = math.ceil(train_size / settings.batch_size) * settings.epochs_for(run)
         seconds = speed_by_mode[run.mode] * steps
-        rows.append({"lượt": run.key, "mô tả": run.describe(), "step": steps, "giờ": round(seconds / 3600, 2)})
+        rows.append({"run": run.key, "description": run.describe(), "steps": steps,
+                     "hours": round(seconds / 3600, 2)})
     return pd.DataFrame(rows)

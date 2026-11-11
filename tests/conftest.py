@@ -1,4 +1,4 @@
-"""Dựng model tí hon có cùng cấu trúc file với ViSoBERT và dữ liệu giả cùng định dạng ViHSD."""
+"""Build a tiny model with the same file layout as ViSoBERT, and fake data in the ViHSD format."""
 
 import csv
 import random
@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+# Fake Vietnamese words (without diacritics) used to build distinguishable sentences per label.
 CLEAN_WORDS = ["hom", "nay", "troi", "dep", "qua", "ban", "that", "vui", "cam", "on"]
 OFFENSIVE_WORDS = ["chan", "that", "te", "qua", "buc", "minh", "lam", "nan", "gat"]
 HATE_WORDS = ["ghet", "bon", "do", "cut", "di", "tham", "hoa", "khong", "chiu"]
@@ -19,7 +20,7 @@ def _sentences(words, count, generator):
 
 
 def write_vihsd_csv(directory: Path, sizes=None, seed: int = 0) -> Path:
-    """Tạo train.csv, dev.csv, test.csv với cột free_text và label_id."""
+    """Create train.csv, dev.csv and test.csv with the columns free_text and label_id."""
     generator = random.Random(seed)
     sizes = sizes or {"train": (120, 20, 40), "dev": (40, 8, 12), "test": (40, 8, 12)}
     directory.mkdir(parents=True, exist_ok=True)
@@ -36,7 +37,7 @@ def write_vihsd_csv(directory: Path, sizes=None, seed: int = 0) -> Path:
 
 
 def build_tiny_visobert(directory: Path) -> Path:
-    """Thư mục chỉ gồm config.json, pytorch_model.bin và sentencepiece.bpe.model như repo thật."""
+    """Directory with only config.json, pytorch_model.bin and sentencepiece.bpe.model, like the real repo."""
     import sentencepiece as spm
     import torch
     from transformers import AutoTokenizer, XLMRobertaConfig, XLMRobertaForMaskedLM

@@ -1,6 +1,6 @@
-"""So các lượt trên dev và chấm test.
+"""Compare runs on dev and score the test set.
 
-Dòng lệnh: python -m vihsd_lora.evaluate --slug A_lora_r8_e10_s42
+Command line: python -m vihsd_lora.evaluate --slug A_lora_r8_e10_s42
 """
 
 from __future__ import annotations
@@ -27,13 +27,13 @@ def runs_root(settings: Settings) -> Path:
 
 
 def compare_on_dev(settings: Optional[Settings] = None) -> pd.DataFrame:
-    """Bảng các lượt đã train, xếp theo macro F1 trên dev."""
+    """Table of trained runs, sorted by dev macro F1."""
     settings = settings or Settings.from_env()
     rows = []
     for path in sorted(runs_root(settings).glob("*/run_summary.json")):
         rows.append(json.loads(path.read_text(encoding="utf-8")))
     if not rows:
-        raise FileNotFoundError(f"Chưa có lượt nào train xong trong {runs_root(settings)}")
+        raise FileNotFoundError(f"No finished runs found in {runs_root(settings)}")
     table = pd.DataFrame(rows)
     columns = ["slug", "mode", "rank", "epochs", "seed", "trainable_params", "dev_accuracy",
                "dev_macro_f1", "best_epoch", "mean_epoch_seconds", "gpu_peak_mb", "saved_mb"]
@@ -41,7 +41,7 @@ def compare_on_dev(settings: Optional[Settings] = None) -> pd.DataFrame:
 
 
 def select_for_test(settings: Optional[Settings] = None) -> dict:
-    """Chọn LoRA tốt nhất và full fine-tune chỉ dựa trên dev."""
+    """Pick the best LoRA run and the full fine-tune run, based on dev only."""
     table = compare_on_dev(settings)
     lora = table[table["mode"] == "lora"]
     full = table[table["mode"] == "full"]
@@ -55,12 +55,12 @@ def select_for_test(settings: Optional[Settings] = None) -> dict:
 
 
 def evaluate_on_test(slug: str, settings: Optional[Settings] = None, force: bool = False) -> dict:
-    """Chấm test một lần. Lần sau trả lại kết quả cũ, trừ khi force=True."""
+    """Score the test set once. Later calls return the saved result unless force=True."""
     settings = settings or Settings.from_env()
     run_dir = runs_root(settings) / slug
     metrics_path = run_dir / "test_metrics.json"
     if metrics_path.exists() and not force:
-        print(f"{slug} đã chấm test, trả lại kết quả đã lưu.")
+        print(f"{slug} has already been scored on test, returning the saved result.")
         return json.loads(metrics_path.read_text(encoding="utf-8"))
 
     model, tokenizer, summary = load_trained(run_dir)
@@ -81,7 +81,7 @@ def evaluate_on_test(slug: str, settings: Optional[Settings] = None, force: bool
     result["samples_per_second"] = len(texts) / seconds
     metrics_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
 
-    # Không lưu nội dung bình luận để tránh phát tán dữ liệu xúc phạm theo kết quả.
+    # Do not store the comment text, so offensive data does not spread along with the results.
     pd.DataFrame({"index": np.arange(len(y_true)), "label": y_true, "pred": y_pred}).to_csv(
         run_dir / "predictions_test.csv", index=False)
 
@@ -97,12 +97,12 @@ def evaluate_on_test(slug: str, settings: Optional[Settings] = None, force: bool
 
     low, high = result["macro_f1_ci95"]
     print(f"{slug}: test Acc {result['accuracy']:.2f}, macro F1 {result['macro_f1']:.2f} "
-          f"(95% CI {low:.2f}–{high:.2f}), {result['samples_per_second']:.0f} mẫu/giây")
+          f"(95% CI {low:.2f}–{high:.2f}), {result['samples_per_second']:.0f} samples/s")
     return result
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Chấm test một lượt đã train")
+    parser = argparse.ArgumentParser(description="Score a trained run on the test set")
     parser.add_argument("--slug", required=True)
     parser.add_argument("--force", action="store_true")
     arguments = parser.parse_args()

@@ -1,4 +1,4 @@
-"""Kiểm tra dữ liệu, LoRA, train, resume, đánh giá và inference trên CPU."""
+"""Test data handling, LoRA, training, resuming, evaluation and inference on CPU."""
 
 import json
 from pathlib import Path
@@ -79,7 +79,7 @@ def test_bootstrap_outputs_ordered_interval():
 
 
 def test_real_visobert_parameter_counts():
-    """Kiến trúc thật: khớp số trong kế hoạch."""
+    """Real architecture: counts match the numbers in the plan."""
     from peft import LoraConfig, TaskType, get_peft_model
     from transformers import XLMRobertaConfig, XLMRobertaForSequenceClassification
 
@@ -141,7 +141,7 @@ def test_merge_gives_same_predictions(settings):
 
 class _Interrupt(train_module.HistoryCallback):
     def on_save(self, args, state, control, **kwargs):
-        raise KeyboardInterrupt("Giả lập Colab ngắt phiên")
+        raise KeyboardInterrupt("Simulate a Colab session disconnect")
 
 
 def test_resume_after_interruption(settings, monkeypatch):
@@ -211,7 +211,7 @@ def test_full_run_saves_whole_model_and_is_larger(settings):
 def test_second_train_call_is_skipped(settings, capsys):
     train_module.train_run("A", settings=settings)
     train_module.train_run("A", settings=settings)
-    assert "đã train xong" in capsys.readouterr().out
+    assert "already trained" in capsys.readouterr().out
 
 
 def test_test_set_is_scored_once_and_keeps_no_text(settings):
@@ -235,7 +235,7 @@ def test_main_table_has_published_rows_and_groups_new_runs(settings):
     evaluate_on_test(settings.slug(get_run("A"), 42), settings)
     table = main_table(settings)
     assert len(table) == 13 + 1 + 1
-    assert table.iloc[0]["Hệ thống"] == "ViSoBERT"
+    assert table.iloc[0]["System"] == "ViSoBERT"
     paths = export_tables(settings)
     assert paths["markdown"].read_text(encoding="utf-8").count("\n") == len(table) + 2
 

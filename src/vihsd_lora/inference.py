@@ -1,4 +1,4 @@
-"""Dự đoán văn bản mới và đo độ trễ."""
+"""Predict new text and measure latency."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def predict_logits(model, tokenizer, texts, batch_size: int = 80, max_length: in
 
 
 class Predictor:
-    """Bộ dự đoán dùng model tốt nhất của một lượt."""
+    """Predictor that uses the best model of a run."""
 
     def __init__(self, run_dir, device=None, max_length: int = 128):
         self.model, self.tokenizer, self.summary = load_trained(run_dir, device)
@@ -46,16 +46,16 @@ class Predictor:
         return rows
 
     def merge_lora(self) -> None:
-        """Gộp BA vào trọng số gốc, sau bước này model không còn phần LoRA riêng."""
+        """Merge BA into the base weights. Afterwards the model has no separate LoRA layers."""
         if self.summary["mode"] != "lora":
-            raise ValueError("Lượt này không dùng LoRA.")
+            raise ValueError("This run does not use LoRA.")
         if not self.merged:
             self.model = self.model.merge_and_unload()
             self.model.eval()
             self.merged = True
 
     def latency_ms(self, texts, batch_size: int = 1, repeats: int = 3) -> float:
-        """Thời gian trung bình cho mỗi lần gọi model, tính bằng mili giây."""
+        """Average time per model call, in milliseconds (best of `repeats`)."""
         best = float("inf")
         for _ in range(repeats):
             if torch.cuda.is_available():

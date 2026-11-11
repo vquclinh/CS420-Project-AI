@@ -1,45 +1,45 @@
-# LoRA trên ViHSD
+# LoRA on ViHSD
 
-Repo cho phần thực nghiệm của seminar LoRA: so sánh LoRA với full fine-tune trên ViSoBERT cho bài toán phát hiện ngôn từ thù ghét tiếng Việt (ViHSD). Kế hoạch đầy đủ nằm ở [docs/ke-hoach-seminar-lora-vihsd.md](docs/ke-hoach-seminar-lora-vihsd.md).
+Code for the experimental part of a LoRA seminar: comparing LoRA with full fine-tuning of ViSoBERT on Vietnamese hate speech detection (ViHSD). The full plan is in [docs/seminar-plan-lora-vihsd.md](docs/seminar-plan-lora-vihsd.md).
 
-## Cấu trúc
+## Layout
 
 ```text
-notebooks/   Các notebook cần chạy, đánh số theo thứ tự
-src/         Code train, đánh giá, inference, bảng và biểu đồ
-data/        Số liệu đã công bố (published_results.csv), không chứa dữ liệu ViHSD
-docs/        Kế hoạch seminar
-tests/       Kiểm thử chạy trên CPU với model tí hon và dữ liệu giả
-tools/       Script sinh lại notebook
+notebooks/   Notebooks to run, numbered in order
+src/         Training, evaluation, inference, tables and charts
+data/        Published results (published_results.csv); contains no ViHSD data
+docs/        Seminar plan
+tests/       CPU tests with a tiny model and fake data
+tools/       Script that regenerates the notebooks
 ```
 
-## Chuẩn bị
+## Setup
 
-1. **Hugging Face:** đăng nhập, mở [uitnlp/vihsd](https://huggingface.co/datasets/uitnlp/vihsd) và chấp nhận điều kiện. Sau đó tạo một token quyền Read trong phần Settings > Access Tokens.
-2. **W&B:** tạo tài khoản tại [wandb.ai](https://wandb.ai) và lấy API key ở trang [authorize](https://wandb.ai/authorize).
-3. **Secret:** thêm `HF_TOKEN` và `WANDB_API_KEY`.
-   - Colab: mở biểu tượng chìa khóa ở thanh bên trái, thêm hai secret và bật quyền truy cập cho notebook.
-   - Kaggle: mở Add-ons > Secrets, thêm hai secret và bật cho notebook.
-4. **GPU:** trên Colab chọn Runtime > Change runtime type, rồi chọn T4 hoặc L4. Trên Kaggle chọn GPU T4 và bật Internet.
-5. **Repo:** sửa `REPO_URL` ở ô đầu tiên của mỗi notebook thành địa chỉ repo GitHub. Nếu repo private, tạo một fine-grained token chỉ có quyền đọc repo này và thêm vào Colab với tên `GITHUB_TOKEN`.
+1. **Hugging Face:** log in, open [uitnlp/vihsd](https://huggingface.co/datasets/uitnlp/vihsd) and accept the conditions. Then create a token with Read access under Settings > Access Tokens.
+2. **W&B:** create an account at [wandb.ai](https://wandb.ai) and get an API key from the [authorize](https://wandb.ai/authorize) page.
+3. **Secrets:** add `HF_TOKEN` and `WANDB_API_KEY`.
+   - Colab: open the key icon in the left sidebar, add both secrets and enable notebook access.
+   - Kaggle: open Add-ons > Secrets, add both secrets and enable them for the notebook.
+4. **GPU:** on Colab, choose Runtime > Change runtime type, then pick T4 or L4. On Kaggle, choose GPU T4 and turn on Internet.
+5. **Repo:** set `REPO_URL` in the first cell of each notebook to your GitHub repo URL. If the repo is private, create a fine-grained token with read-only access to this repo and add it to Colab as `GITHUB_TOKEN`.
 
-## Thứ tự chạy
+## Run order
 
-| Notebook | Việc thực hiện | Thời gian ước tính |
+| Notebook | What it does | Estimated time |
 |---|---|---|
-| `00_setup_and_check` | Kiểm tra GPU, dữ liệu, số tham số, đo tốc độ thật | Khoảng 10–15 phút |
-| `01_train` | Train từng lượt A, B, C, D, E | 30–70 phút mỗi lượt 10 epoch trên T4 |
-| `02_evaluate` | So trên dev, chọn cấu hình, chấm test | Vài phút |
-| `03_inference` | Dự đoán câu mới, kiểm tra gộp LoRA | Vài phút |
-| `04_results_for_slides` | Xuất bảng và biểu đồ PNG | Dưới 2 phút |
+| `00_setup_and_check` | Checks GPU, data, parameter counts, measures real speed | About 10–15 minutes |
+| `01_train` | Trains runs A, B, C, D, E | 30–70 minutes per 10-epoch run on T4 |
+| `02_evaluate` | Compares on dev, picks configurations, scores on test | A few minutes |
+| `03_inference` | Predicts new sentences, checks LoRA merging | A few minutes |
+| `04_results_for_slides` | Exports tables and PNG charts | Under 2 minutes |
 
-Các con số trên là ước tính. Notebook `00` sẽ cho thời gian thật theo GPU của bạn.
+These times are estimates. Notebook `00` reports the real times for your GPU.
 
-Nếu mỗi thành viên chạy một lượt, hãy chép các thư mục `outputs/runs/<tên lượt>` về chung một Drive trước khi chạy notebook `02` và `04`.
+If each team member trains one run, copy all `outputs/runs/<run name>` folders into one shared Drive before running notebooks `02` and `04`.
 
-## Các lượt train
+## Training runs
 
-| Lượt | Cách train | r | alpha | Learning rate | Epoch |
+| Run | Method | r | alpha | Learning rate | Epochs |
 |---|---|---|---|---|---|
 | A | LoRA | 8 | 8 | 5e-4 | 10 |
 | B | Full fine-tune | | | 2e-5 | 10 |
@@ -47,50 +47,50 @@ Nếu mỗi thành viên chạy một lượt, hãy chép các thư mục `outpu
 | D | LoRA | 16 | 8 | 5e-4 | 10 |
 | E | LoRA | 8 | 8 | 5e-4 | 30 |
 
-Mọi lượt dùng batch 40, max length 128, warmup 6%, FP16 và chọn epoch tốt nhất theo macro F1 trên dev.
+All runs use batch size 40, max length 128, 6% warmup, FP16, and keep the epoch with the best dev macro F1.
 
-## Lưu trên Drive và train tiếp
+## Saving to Drive and resuming
 
-Trên Colab, notebook tự mount Drive và lưu mọi thứ quan trọng lên Drive, không để trong `/content`.
+On Colab, the notebooks mount Drive automatically and save everything important there, not in `/content`.
 
-- **Checkpoint để train tiếp:** LoRA lưu mỗi epoch (vài MB), full fine-tune lưu cách 2 epoch (khoảng 1.2GB mỗi lần, gồm model và optimizer). Drive chỉ giữ checkpoint mới nhất. Đổi khoảng cách bằng `SAVE_EVERY_EPOCHS` trong notebook `01`.
-- **Model tốt nhất:** lưu vào `best/` ngay khi macro F1 trên dev tăng, độc lập với checkpoint, nên không mất epoch tốt nhất dù checkpoint lưu thưa.
-- **Bị ngắt phiên:** mở lại notebook `01`, chạy lại từ đầu với cùng lượt. Quá trình tiếp tục từ checkpoint gần nhất và nối vào cùng run trên W&B. Lượt đã train xong sẽ được bỏ qua.
-- **Thùng rác Drive:** checkpoint cũ bị xóa có thể nằm trong thùng rác và vẫn chiếm dung lượng. Sau lượt full fine-tune, hãy làm trống thùng rác Drive.
-- **File tạm của W&B:** để ở `/content/wandb_local`, vì dữ liệu đã được đồng bộ lên W&B. Trên Drive chỉ giữ `wandb_id.txt` để nối lại đúng run.
+- **Resumable checkpoints:** LoRA saves every epoch (a few MB); full fine-tune saves every 2 epochs (about 1.2GB each time, model plus optimizer). Drive keeps only the latest checkpoint. Change the interval with `SAVE_EVERY_EPOCHS` in notebook `01`.
+- **Best model:** saved to `best/` as soon as the dev macro F1 improves, independently of the checkpoints, so the best epoch is never lost even with sparse checkpoints.
+- **Session disconnected:** reopen notebook `01` and run it from the top with the same run. Training resumes from the latest checkpoint and continues the same W&B run. Finished runs are skipped.
+- **Drive trash:** deleted checkpoints may stay in the trash and still use quota. Empty the Drive trash after a full fine-tune run.
+- **W&B local files:** kept in `/content/wandb_local`, since the data is already synced to W&B. Drive only keeps `wandb_id.txt` to resume the right run.
 
-## Kết quả nằm ở đâu
+## Where the results are
 
-Trên Colab, kết quả lưu trong Drive tại `MyDrive/vihsd-lora/outputs`. Trên Kaggle, kết quả nằm ở `/kaggle/working/outputs`.
+On Colab, results are saved to Drive at `MyDrive/vihsd-lora/outputs`. On Kaggle, they are at `/kaggle/working/outputs`.
 
 ```text
 outputs/
-  runs/<tên lượt>/
-    best/                 Adapter LoRA hoặc model đầy đủ có macro F1 dev cao nhất
-    best_state.json       Điểm và epoch của model trong best/
-    checkpoints/          Checkpoint để train tiếp, tự xóa khi train xong
-    history.csv           Số liệu theo epoch
-    run_summary.json      Tham số, thời gian, VRAM, dung lượng, điểm dev
-    test_metrics.json     Điểm test, khoảng tin cậy, confusion matrix
-    predictions_test.csv  Nhãn thật và nhãn dự đoán, không chứa văn bản
+  runs/<run name>/
+    best/                 LoRA adapter or full model with the highest dev macro F1
+    best_state.json       Score and epoch of the model in best/
+    checkpoints/          Resumable checkpoints, deleted automatically when training finishes
+    history.csv           Per-epoch metrics
+    run_summary.json      Hyperparameters, time, VRAM, saved size, dev scores
+    test_metrics.json     Test scores, confidence intervals, confusion matrix
+    predictions_test.csv  True and predicted labels, without the text
   results/
-    main_results.csv      Bảng kết quả
-    main_results.md       Bảng dạng markdown để dán vào report
-    figures/              Biểu đồ PNG cho slide
+    main_results.csv      Results table
+    main_results.md       Markdown table to paste into the report
+    figures/              PNG charts for the slides
 ```
 
-## Biểu đồ trên W&B
+## Charts on W&B
 
-Project mặc định là `vihsd-lora-seminar`. Nếu cả nhóm dùng chung một team W&B, điền tên team vào `WANDB_TEAM` trong notebook `01_train`.
+The default project is `vihsd-lora-seminar`. If the whole team shares a W&B team, set its name in `WANDB_TEAM` in notebook `01_train`.
 
-- Nhóm `by_epoch` chứa số liệu theo epoch: `dev_macro_f1`, `dev_accuracy`, `train_loss`, `dev_loss`, `epoch_seconds`, `gpu_peak_mb`.
-- Nhóm `eval` và `train` chứa số liệu theo step do Trainer ghi.
-- Trong bảng Runs, chọn nhiều lượt để so trên cùng một biểu đồ.
-- Mở menu ở góc biểu đồ để tải PNG.
+- The `by_epoch` group has per-epoch metrics: `dev_macro_f1`, `dev_accuracy`, `train_loss`, `dev_loss`, `epoch_seconds`, `gpu_peak_mb`.
+- The `eval` and `train` groups have per-step metrics logged by the Trainer.
+- In the Runs table, select several runs to compare them on the same chart.
+- Open the menu in the corner of a chart to download a PNG.
 
-Notebook `04` cũng tạo sẵn các biểu đồ cùng màu cho slide, không phụ thuộc W&B: đường macro F1, train loss, ảnh hưởng của rank, macro F1 theo số tham số, F1 từng nhãn, chi phí, và confusion matrix.
+Notebook `04` also creates color-consistent charts for the slides, independent of W&B: macro F1 curves, train loss, rank effect, macro F1 vs. parameter count, per-label F1, cost, and confusion matrices.
 
-## Chạy bằng dòng lệnh
+## Command line
 
 ```bash
 pip install -r requirements.txt
@@ -99,32 +99,32 @@ python -m vihsd_lora.train --run A --seed 42
 python -m vihsd_lora.evaluate --slug A_lora_r8_e10_s42
 ```
 
-Có thể dùng dữ liệu cục bộ bằng cách đặt `VIHSD_DATA_DIR` tới thư mục chứa `train.csv`, `dev.csv`, `test.csv`.
+To use local data, set `VIHSD_DATA_DIR` to a folder containing `train.csv`, `dev.csv` and `test.csv`.
 
-## Xử lý lỗi thường gặp
+## Troubleshooting
 
-| Hiện tượng | Cách xử lý |
+| Symptom | Fix |
 |---|---|
-| Lỗi 401 hoặc 403 khi tải dữ liệu | Kiểm tra đã chấp nhận điều kiện ở `uitnlp/vihsd` và `HF_TOKEN` đúng |
-| Báo số mẫu không khớp | Dừng lại và kiểm tra nguồn dữ liệu. Không nên bỏ qua vì kết quả sẽ không so được với bảng số liệu |
-| Không tải được `uitnlp/visobert` | Đặt `VIHSD_MODEL_NAME=xlm-roberta-large`. Thời gian sẽ dài hơn |
-| Hết VRAM | Đặt `VIHSD_BATCH_SIZE` nhỏ hơn và ghi rõ thay đổi trong report |
-| Colab ngắt phiên | Chạy lại `01_train` với cùng lượt để train tiếp |
-| Lỗi import ngay sau khi cài thư viện | Chọn Runtime > Restart session rồi chạy lại từ đầu |
-| `Found an incompatible version of torchao` | Ô đầu tiên đã tự gỡ torchao. Nếu vẫn gặp, chạy `!pip uninstall -y torchao`, chọn Runtime > Restart session rồi chạy lại |
-| Không muốn dùng W&B | Đặt `WANDB_MODE=disabled`, `history.csv` và biểu đồ PNG vẫn được tạo |
+| Error 401 or 403 when loading the data | Check that you accepted the conditions on `uitnlp/vihsd` and that `HF_TOKEN` is correct |
+| Sample count mismatch | Stop and check the data source. Do not skip the check, or the results will not be comparable with the published tables |
+| Cannot load `uitnlp/visobert` | Set `VIHSD_MODEL_NAME=xlm-roberta-large`. Training will take longer |
+| Out of VRAM | Set a smaller `VIHSD_BATCH_SIZE` and state the change in the report |
+| Colab session disconnected | Re-run `01_train` with the same run to resume |
+| Import error right after installing packages | Choose Runtime > Restart session, then run from the top |
+| `Found an incompatible version of torchao` | The first cell already removes torchao. If it still happens, run `!pip uninstall -y torchao`, choose Runtime > Restart session and run again |
+| You do not want to use W&B | Set `WANDB_MODE=disabled`; `history.csv` and the PNG charts are still created |
 
-## Kiểm thử
+## Tests
 
 ```bash
 pip install -r requirements.txt pytest
 python -m pytest tests -q
 ```
 
-## Trạng thái kiểm thử
+## Test status
 
-Toàn bộ 22 test và 5 notebook đã chạy thành công trên CPU với model tí hon và dữ liệu giả, W&B ở chế độ offline. Số tham số của ViSoBERT đã được kiểm tra trên kiến trúc thật dựng từ config. Chưa kiểm thử trên GPU thật, với ViHSD thật, với trọng số ViSoBERT thật, và chưa đẩy lên W&B online. Vì vậy hãy chạy notebook `00` trước.
+All 22 tests and 5 notebooks have run successfully on CPU with a tiny model and fake data, with W&B in offline mode. The ViSoBERT parameter counts were verified on the real architecture built from its config. Not yet tested: a real GPU, the real ViHSD data, the real ViSoBERT weights, and online W&B logging. So run notebook `00` first.
 
-## Lưu ý về dữ liệu
+## Data notice
 
-ViHSD chỉ dùng cho nghiên cứu và chứa bình luận xúc phạm thật. Repo không lưu dữ liệu, và `predictions_test.csv` không chứa văn bản. Không commit dữ liệu lên git, và hạn chế đưa nguyên văn bình luận lên slide.
+ViHSD is for research use only and contains real offensive comments. This repo does not store the data, and `predictions_test.csv` contains no text. Do not commit the data to git, and avoid putting raw comments on slides.

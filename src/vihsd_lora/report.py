@@ -1,4 +1,4 @@
-"""Gộp kết quả các lượt với số liệu đã công bố."""
+"""Combine the run results with the published numbers."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def load_published() -> pd.DataFrame:
 
 
 def collect_runs(settings: Optional[Settings] = None) -> pd.DataFrame:
-    """Một dòng cho mỗi lượt, gồm thông tin train và điểm test nếu đã chấm."""
+    """One row per run, with training info and test scores if already scored."""
     settings = settings or Settings.from_env()
     rows = []
     for summary_path in sorted((Path(settings.output_root) / "runs").glob("*/run_summary.json")):
@@ -51,33 +51,34 @@ def majority_row() -> dict:
     counts = EXPECTED_COUNTS["test"]
     y_true = np.repeat([0, 1, 2], [counts["CLEAN"], counts["OFFENSIVE"], counts["HATE"]])
     scores = majority_baseline(y_true)
-    return {"Hệ thống": "Luôn đoán CLEAN", "Acc": round(scores["accuracy"], 2),
-            "Macro F1": round(scores["macro_f1"], 2), "Tham số train": 0, "Nguồn": "Tính từ phân bố nhãn test"}
+    return {"System": "Always predict CLEAN", "Acc": round(scores["accuracy"], 2),
+            "Macro F1": round(scores["macro_f1"], 2), "Trainable params": 0,
+            "Source": "Computed from the test label distribution"}
 
 
 def _run_label(row) -> str:
     model = str(row["model_name"])
     name = "ViSoBERT" if "visobert" in model.lower() else Path(model).name
     if row["mode"] == "lora":
-        return f"{name} + LoRA r={int(row['rank'])}, {int(row['epochs'])} epoch (nhóm)"
-    return f"{name} full fine-tune, {int(row['epochs'])} epoch (nhóm)"
+        return f"{name} + LoRA r={int(row['rank'])}, {int(row['epochs'])} epochs (ours)"
+    return f"{name} full fine-tune, {int(row['epochs'])} epochs (ours)"
 
 
 def main_table(settings: Optional[Settings] = None) -> pd.DataFrame:
-    """Bảng chính: 13 dòng đã công bố, mốc luôn đoán CLEAN, và các lượt đã chấm test."""
+    """Main table: 13 published rows, the always-CLEAN baseline, and the runs scored on test."""
     settings = settings or Settings.from_env()
     published = load_published()
     published = published[published["table"] == "main"]
-    rows = [{"Hệ thống": row.model, "Acc": row.accuracy, "Macro F1": row.macro_f1,
-             "Tham số train": row.trainable_params, "Nguồn": row.source}
+    rows = [{"System": row.model, "Acc": row.accuracy, "Macro F1": row.macro_f1,
+             "Trainable params": row.trainable_params, "Source": row.source}
             for row in published.itertuples()]
     rows.append(majority_row())
     runs = collect_runs(settings)
     if len(runs) and "test_macro_f1" in runs:
         for _, row in runs.dropna(subset=["test_macro_f1"]).iterrows():
-            rows.append({"Hệ thống": _run_label(row), "Acc": round(row["test_accuracy"], 2),
+            rows.append({"System": _run_label(row), "Acc": round(row["test_accuracy"], 2),
                          "Macro F1": round(row["test_macro_f1"], 2),
-                         "Tham số train": row["trainable_params"], "Nguồn": "Nhóm tự chạy"})
+                         "Trainable params": row["trainable_params"], "Source": "Our run"})
     table = pd.DataFrame(rows).sort_values("Macro F1", ascending=False).reset_index(drop=True)
     return table
 
@@ -90,8 +91,8 @@ def _markdown(table: pd.DataFrame) -> str:
         cells = []
         for column in table.columns:
             value = row[column]
-            if column == "Tham số train":
-                cells.append("Cần đếm" if pd.isna(value) else "0" if value == 0 else f"{value / 1e6:.2f}M")
+            if column == "Trainable params":
+                cells.append("Not counted" if pd.isna(value) else "0" if value == 0 else f"{value / 1e6:.2f}M")
             elif isinstance(value, float):
                 cells.append(f"{value:.2f}")
             else:
@@ -113,18 +114,18 @@ def export_tables(settings: Optional[Settings] = None) -> dict:
 
 
 def compare_on_test(slug_a: str, slug_b: str, settings: Optional[Settings] = None) -> dict:
-    """So hai lượt trên cùng các mẫu test bằng bootstrap ghép cặp."""
+    """Compare two runs on the same test samples with a paired bootstrap."""
     settings = settings or Settings.from_env()
     root = Path(settings.output_root) / "runs"
     first = pd.read_csv(root / slug_a / "predictions_test.csv")
     second = pd.read_csv(root / slug_b / "predictions_test.csv")
     if not (first["label"].values == second["label"].values).all():
-        raise ValueError("Hai lượt không được chấm trên cùng một tập test.")
+        raise ValueError("The two runs were not scored on the same test set.")
     return paired_bootstrap_difference(first["label"], first["pred"], second["pred"])
 
 
 def log_figures_to_wandb(paths, settings: Optional[Settings] = None) -> None:
-    """Đưa các biểu đồ lên W&B thành một run riêng."""
+    """Log the charts to W&B as a separate run."""
     settings = settings or Settings.from_env()
     if not settings.use_wandb:
         return

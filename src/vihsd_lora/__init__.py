@@ -1,3 +1,3 @@
-"""LoRA tren ViSoBERT cho bai toan phat hien ngon tu thu ghet ViHSD."""
+"""LoRA on ViSoBERT for Vietnamese hate speech detection on ViHSD."""
 
 __version__ = "1.0.0"

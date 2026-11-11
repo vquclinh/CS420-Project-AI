@@ -1,4 +1,4 @@
-"""Biểu đồ PNG cho slide. Mỗi lượt giữ một màu cố định trên mọi biểu đồ."""
+"""PNG charts for the slides. Each run keeps a fixed color across all charts."""
 
 from __future__ import annotations
 
@@ -44,8 +44,8 @@ STYLE = {
 
 def _run_name(row) -> str:
     if row["mode"] == "full":
-        return f"Full fine-tune, {int(row['epochs'])} epoch"
-    return f"LoRA r={int(row['rank'])}, {int(row['epochs'])} epoch"
+        return f"Full fine-tune, {int(row['epochs'])} epochs"
+    return f"LoRA r={int(row['rank'])}, {int(row['epochs'])} epochs"
 
 
 def _clean_axes(ax, grid_axis: str = "y") -> None:
@@ -67,12 +67,12 @@ def _save(figure, directory: Path, name: str) -> Path:
 
 
 def _primary_runs(runs: pd.DataFrame) -> pd.DataFrame:
-    """Giữ seed nhỏ nhất của mỗi lượt để biểu đồ không bị trùng đường."""
+    """Keep the smallest seed of each run so the charts have no duplicate lines."""
     return runs.sort_values(["run_key", "seed"]).drop_duplicates("run_key")
 
 
 def _horizontal_bar(ax, value, center, thickness, color, x_max) -> None:
-    """Thanh có đầu bo tròn, phần đầu sát trục được cắt phẳng bằng cách vẽ lấn qua trục."""
+    """Bar with a rounded end. The end at the axis is cut flat by drawing it past the axis."""
     box = ax.get_window_extent()
     y_low, y_high = ax.get_ylim()
     x_per_px = x_max / box.width
@@ -121,11 +121,11 @@ def plot_rank_effect(runs: pd.DataFrame, directory: Path) -> Optional[Path]:
                         ha="center", color=INK, fontsize=11)
         if len(full):
             ax.axhline(full["dev_macro_f1"].iloc[0], color=FULL_COLOR, linewidth=1.8, label="Full fine-tune")
-        ax.set_xticks(positions, [f"r={int(rank)}\n{int(params) / 1e6:.2f}M tham số"
+        ax.set_xticks(positions, [f"r={int(rank)}\n{int(params) / 1e6:.2f}M params"
                                   for rank, params in zip(lora["rank"], lora["trainable_params"])])
         ax.set_xlim(-0.4, len(lora) - 0.6)
-        ax.set_title("Tăng rank có còn tăng điểm không?", pad=40)
-        ax.set_ylabel("Macro F1 trên dev")
+        ax.set_title("Does a higher rank still improve the score?", pad=40)
+        ax.set_ylabel("Dev macro F1")
         _clean_axes(ax)
         ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, borderaxespad=0.2, handlelength=1.4)
         return _save(figure, directory, "rank_effect")
@@ -142,8 +142,8 @@ def plot_f1_vs_params(runs: pd.DataFrame, directory: Path) -> Optional[Path]:
     with plt.rc_context(STYLE):
         figure, ax = plt.subplots(figsize=(9.6, 5.4))
         ax.scatter(published["trainable_params"], published["macro_f1"], s=62, color=MUTED,
-                   edgecolors=SURFACE, linewidths=1.4, label="Full fine-tune đã công bố", zorder=3)
-        for mode, color, label in (("lora", LORA_COLOR, "LoRA của nhóm"), ("full", FULL_COLOR, "Full fine-tune của nhóm")):
+                   edgecolors=SURFACE, linewidths=1.4, label="Published full fine-tune", zorder=3)
+        for mode, color, label in (("lora", LORA_COLOR, "Our LoRA"), ("full", FULL_COLOR, "Our full fine-tune")):
             group = tested[tested["mode"] == mode]
             if len(group):
                 ax.scatter(group["trainable_params"], group["test_macro_f1"], s=86, color=color,
@@ -160,8 +160,8 @@ def plot_f1_vs_params(runs: pd.DataFrame, directory: Path) -> Optional[Path]:
         ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value / 1e6:g}M"))
         ax.minorticks_off()
         ax.margins(y=0.1)
-        ax.set_title("Macro F1 trên test theo số tham số train", pad=40)
-        ax.set_xlabel("Số tham số train (thang log)")
+        ax.set_title("Test macro F1 vs. trainable parameters", pad=40)
+        ax.set_xlabel("Trainable parameters (log scale)")
         ax.set_ylabel("Macro F1")
         _clean_axes(ax)
         ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, borderaxespad=0.2, handletextpad=0.3)
@@ -189,8 +189,8 @@ def plot_per_class(runs: pd.DataFrame, directory: Path) -> Optional[Path]:
                 _horizontal_bar(ax, value, index + offset, thickness, color, 110)
                 ax.text(value + 1.2, index + offset, f"{value:.1f}", va="center", color=INK, fontsize=11)
         ax.set_yticks(range(len(LABELS)), LABELS)
-        ax.set_xlabel("F1 trên test")
-        ax.set_title("F1 từng nhãn trên test", pad=40)
+        ax.set_xlabel("Test F1")
+        ax.set_title("Per-label F1 on test", pad=40)
         _clean_axes(ax, "x")
         handles = [plt.Rectangle((0, 0), 1, 1, color=LORA_COLOR), plt.Rectangle((0, 0), 1, 1, color=FULL_COLOR)]
         ax.legend(handles, [f"LoRA r={int(lora['rank'].iloc[0])}", "Full fine-tune"], loc="lower left",
@@ -204,8 +204,8 @@ def plot_cost(runs: pd.DataFrame, directory: Path) -> Optional[Path]:
     full = data[data["mode"] == "full"]
     if lora.empty or full.empty:
         return None
-    measures = [("trainable_params", "Tham số train (triệu)", 1e6), ("mean_epoch_seconds", "Giây mỗi epoch", 1),
-                ("gpu_peak_mb", "VRAM cao nhất (GB)", 1024), ("saved_mb", "Dung lượng lưu (MB)", 1)]
+    measures = [("trainable_params", "Trainable params (millions)", 1e6), ("mean_epoch_seconds", "Seconds per epoch", 1),
+                ("gpu_peak_mb", "Peak VRAM (GB)", 1024), ("saved_mb", "Saved size (MB)", 1)]
     measures = [item for item in measures if float(full[item[0]].iloc[0]) > 0]
     with plt.rc_context(STYLE):
         figure, axes = plt.subplots(1, len(measures), figsize=(3.0 * len(measures) + 1.0, 3.6), sharey=True)
@@ -225,7 +225,7 @@ def plot_cost(runs: pd.DataFrame, directory: Path) -> Optional[Path]:
             ax.set_xticks([])
             for side in ("top", "right", "bottom"):
                 ax.spines[side].set_visible(False)
-        figure.suptitle("Chi phí của LoRA và full fine-tune", x=0.02, ha="left",
+        figure.suptitle("Cost of LoRA vs. full fine-tune", x=0.02, ha="left",
                         fontsize=15, fontweight="bold", color=INK, y=1.0)
         figure.subplots_adjust(top=0.72, wspace=0.12, left=0.09, right=0.98, bottom=0.04)
         return _save(figure, directory, "cost_comparison")
@@ -248,9 +248,9 @@ def plot_confusion(slug: str, settings: Settings, directory: Path, label: str) -
                         ha="center", va="center", color=color, fontsize=11)
         ax.set_xticks(range(len(LABELS)), LABELS)
         ax.set_yticks(range(len(LABELS)), LABELS)
-        ax.set_xlabel("Nhãn dự đoán")
-        ax.set_ylabel("Nhãn thật")
-        ax.set_title(f"Confusion matrix trên test: {label}", pad=12)
+        ax.set_xlabel("Predicted label")
+        ax.set_ylabel("True label")
+        ax.set_title(f"Test confusion matrix: {label}", pad=12)
         for spine in ax.spines.values():
             spine.set_visible(False)
         ax.set_xticks(np.arange(-0.5, len(LABELS)), minor=True)
@@ -258,23 +258,23 @@ def plot_confusion(slug: str, settings: Settings, directory: Path, label: str) -
         ax.grid(which="minor", color=SURFACE, linewidth=2)
         ax.tick_params(which="minor", length=0)
         colorbar = figure.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
-        colorbar.set_label("Tỉ lệ theo nhãn thật", color=SECONDARY)
+        colorbar.set_label("Rate per true label", color=SECONDARY)
         colorbar.outline.set_visible(False)
         return _save(figure, directory, f"confusion_{slug}")
 
 
 def make_all(settings: Optional[Settings] = None) -> list:
-    """Tạo mọi biểu đồ có đủ dữ liệu và trả về danh sách file."""
+    """Create every chart that has enough data and return the list of files."""
     settings = settings or Settings.from_env()
     runs = collect_runs(settings)
     if runs.empty:
-        raise FileNotFoundError("Chưa có lượt nào train xong.")
+        raise FileNotFoundError("No finished runs yet.")
     directory = results_dir(settings) / "figures"
     directory.mkdir(parents=True, exist_ok=True)
     paths = [
-        plot_line_history(runs, settings, "dev_macro_f1", "Macro F1 trên dev theo epoch", "Macro F1",
+        plot_line_history(runs, settings, "dev_macro_f1", "Dev macro F1 by epoch", "Macro F1",
                           directory, "dev_macro_f1"),
-        plot_line_history(runs, settings, "train_loss", "Train loss theo epoch", "Loss", directory, "train_loss"),
+        plot_line_history(runs, settings, "train_loss", "Train loss by epoch", "Loss", directory, "train_loss"),
         plot_rank_effect(runs, directory),
         plot_f1_vs_params(runs, directory),
         plot_per_class(runs, directory),
